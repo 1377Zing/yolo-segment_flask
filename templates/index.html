@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload and Processing</title>
+<!-- Original CDN link -->
+<!-- <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet"> -->
+
+<!-- Updated local file reference -->
+<link href="/static/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .container {
+            margin-top: 50px;
+        }
+        .uploaded-images img, .processed-image img {
+            max-width: 200px;
+            max-height: 400px;
+            margin: 20px;
+            border: 2px solid #dee2e6;
+            border-radius: 5px;
+        }
+        .uploaded-images, .processed-image {
+            margin-top: 20px;
+        }
+        textarea {
+            width: 100%;
+            margin-top: 10px;
+        }
+        .navbar {
+            margin-bottom: 20px;
+        }
+        .navbar .navbar-brand {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .navbar-toggler {
+            position: absolute;
+            right: 10px;
+        }
+    </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark d-flex justify-content-center" style="height: 60px;">
+    <a class="navbar-brand" href="#">荧光定位与定量分析</a>
+</nav>
+
+<div class="container">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <form id="upload-form" action="/upload" method="post" enctype="multipart/form-data" class="mb-4">
+                <div class="form-group">
+                    <label for="single_file">选择一张明场图:</label>
+                    <input type="file" id="single_file" name="single_file" class="form-control-file">
+                </div>
+                <div class="form-group">
+                    <label for="multiple_files">选择荧光图(可选择多张):</label>
+                    <input type="file" id="multiple_files" name="multiple_files" multiple class="form-control-file">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">上传</button>
+            </form>
+            <div id="uploaded-images" class="uploaded-images d-flex flex-wrap justify-content-center"></div>
+
+            <div class="button-container d-flex justify-content-between">
+    <button id="start-detection" class="btn btn-success btn-block mt-4" style="flex: 1; margin-right: 15px;">头部检测</button>
+    <button id="another-action" class="btn btn-primary btn-block mt-4" style="flex: 1; margin-left: 15px;">头部+非头部检测</button>
+            </div>
+
+
+            <div class="processed-image">
+                <h2 class="mt-4">Processed Images</h2>
+                <div id="processed-images" class="text-center"></div> <!-- 使用相同的回显区域 -->
+            </div>
+            <div class="result mt-4">
+                <h2>Results:</h2>
+                <textarea id="result-text" rows="4" class="form-control"></textarea> <!-- 使用相同的结果显示区域 -->
+            </div>
+        </div>
+    </div>
+</div>
+<script type="text/javascript" src="/static/jquery-3.5.1.slim.min.js"></script>
+<script type="text/javascript" src="/static/popper.min.js"></script>
+<script type="text/javascript" src="/static/bootstrap.min.js"></script>
+
+
+<script>
+document.getElementById('upload-form').onsubmit = async function(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const response = await fetch('/upload', {
+        method: 'POST',
+        body: formData
+    });
+    const data = await response.json();
+    const uploadedImagesDiv = document.getElementById('uploaded-images');
+    uploadedImagesDiv.innerHTML = '';
+    data.uploaded_files.forEach(url => {
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = url.split('/').pop(); // 提取文件名作为 alt 文本
+        img.classList.add('img-thumbnail');
+        uploadedImagesDiv.appendChild(img);
+    });
+};
+
+async function handleImageDisplay(data) {
+    const processedImagesDiv = document.getElementById('processed-images');
+    processedImagesDiv.innerHTML = ''; // 清空内容
+
+    if (data.processed_images && data.processed_images.length > 0) {
+        data.processed_images.forEach(filename => {
+            const img = document.createElement('img');
+            img.src = `/processed/${filename}?t=${new Date().getTime()}`; // 添加时间戳避免缓存
+            img.alt = filename;
+            img.classList.add('img-thumbnail');
+            processedImagesDiv.appendChild(img);
+        });
+    } else {
+        console.log("No images to display");
+    }
+}
+
+
+async function handleHeadDetection(route) {
+    console.log("Handling head detection...");
+    const response = await fetch(route, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    });
+
+    const data = await response.json();
+    console.log("Received data from head detection:", data);
+
+    if (data.error) {
+        console.error("Error:", data.error);
+        return;
+    }
+
+    await handleImageDisplay(data);
+
+    const resultText = document.getElementById('result-text');
+    let formattedResults = '{\n';
+    for (let key in data.results) {
+        formattedResults += `  "${key}": [\n`;
+        data.results[key].forEach(arr => {
+            formattedResults += `    [${arr.join(',')}],\n`;
+        });
+        formattedResults += '  ],\n';
+    }
+    formattedResults += '}';
+
+    resultText.value = formattedResults;
+    autoResizeTextarea(resultText);
+}
+
+async function handleHeadAndTailDetection(route) {
+    console.log("Handling head and tail detection...");
+    const response = await fetch(route, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    });
+
+    const data = await response.json();
+    console.log("Received data from head and tail detection:", data);
+
+    if (data.error) {
+        console.error("Error:", data.error);
+        return;
+    }
+
+    await handleImageDisplay(data);
+
+    const resultText = document.getElementById('result-text');
+    let formattedResults = '';
+    for (let color in data.results) {
+        formattedResults += `${color}:\n`;
+        data.results[color].forEach(entry => {
+            formattedResults += `  id: ${entry.id}, head: ${entry.head}, tail: ${entry.tail}\n`;
+        });
+    }
+
+    resultText.value = formattedResults;
+    autoResizeTextarea(resultText);
+}
+
+document.getElementById('start-detection').onclick = function(event) {
+    console.log("Start Detection Button Clicked");
+    handleHeadDetection('/process');  // 处理头部检测
+};
+
+document.getElementById('another-action').onclick = function(event) {
+    console.log("Another Action Button Clicked");
+    handleHeadAndTailDetection('/process2');  // 处理头部+非头部检测
+};
+
+
+// 自动调整文本区域高度
+function autoResizeTextarea(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+}
+
+
+</script>
+</body>
+</html>
