@@ -1,47 +1,34 @@
-certifi @ file:///C:/b/abs_85o_6fm0se/croot/certifi_1671487778835/work/certifi
 cffi==1.15.1
-charset-normalizer @ file:///croot/charset-normalizer_1721748349566/work
 click==8.0.3
-cloudpickle @ file:///tmp/build/80754af9/cloudpickle_1632508026186/work
 colorama==0.4.6
 coloredlogs==15.0.1
 cycler==0.11.0
-cytoolz @ file:///C:/b/abs_61m9vzb4qh/croot/cytoolz_1667465938275/work
+cytoolz 
 dask==2021.10.0
 docopt==0.6.2
-Flask @ file:///opt/conda/conda-bld/flask_1648041541647/work
+Flask
 Flask-Cors==5.0.0
 flatbuffers==24.3.25
-fsspec @ file:///C:/b/abs_5bjz6v0w_f/croot/fsspec_1670336608940/work
 gevent==22.10.2
 greenlet==3.1.1
 gunicorn==23.0.0
 h5py==2.10.0
 humanfriendly==10.0
 idna==3.10
-imagecodecs @ file:///C:/b/abs_f0cr12h73p/croot/imagecodecs_1677576746499/work
-imageio @ file:///C:/Windows/TEMP/abs_24c1b783-7540-4ca9-a1b1-0e8aa8e6ae64hb79ssux/croots/recipe/imageio_1658785038775/work
 importlib-metadata==6.7.0
-itsdangerous @ file:///tmp/build/80754af9/itsdangerous_1621432558163/work
-Jinja2 @ file:///C:/b/abs_7cdis66kl9/croot/jinja2_1666908141852/work
 kiwisolver==1.4.5
-locket @ file:///C:/ci/locket_1652885902808/work
 markdown-it-py==2.2.0
-MarkupSafe @ file:///C:/ci/markupsafe_1654508076077/work
 matplotlib==3.4.3
 mdurl==0.1.2
 mkl-fft==1.3.1
-mkl-random @ file:///C:/ci/mkl_random_1626186163140/work
 mkl-service==2.4.0
 mpmath==1.3.0
-networkx @ file:///tmp/build/80754af9/networkx_1633639043937/work
 numpy==1.21.6
 onnx==1.13.0
 onnxruntime==1.14.1
 onnxsim==0.4.36
 opencv-python==4.5.3.56
 packaging==24.0
-partd @ file:///opt/conda/conda-bld/partd_1647245470509/work
 Pillow==9.3.0
 pipreqs==0.4.13
 protobuf==3.20.3
@@ -51,25 +38,17 @@ Pygments==2.17.2
 pyparsing==3.1.2
 pyreadline==2.1
 python-dateutil==2.9.0.post0
-PyWavelets @ file:///C:/ci/pywavelets_1648728036674/work
 PyYAML==6.0
 requests==2.31.0
 rich==13.7.1
-scikit-image @ file:///C:/b/abs_63r0vmx78u/croot/scikit-image_1669241746873/work
-scipy @ file:///C:/ci/scipy_1661333074914/work
 shapely==2.0.7
-six @ file:///tmp/build/80754af9/six_1644875935023/work
 sympy==1.10.1
-tensorboard-data-server @ file:///C:/b/abs_2fhvpo862s/croot/tensorboard-data-server_1670853600144/work/tensorboard_data_server-0.6.1-py3-none-any.whl
-tifffile @ file:///tmp/build/80754af9/tifffile_1627275862826/work
-toolz @ file:///C:/b/abs_cfvk6rc40d/croot/toolz_1667464080130/work
 torch==1.7.1+cpu
 torchaudio==0.7.2
 torchvision==0.8.2+cpu
 tqdm==4.62.2
 typing_extensions==4.7.1
 urllib3==2.0.7
-Werkzeug @ file:///opt/conda/conda-bld/werkzeug_1645628268370/work
 wincertstore==0.2
 yarg==0.1.10
 zipp==3.15.0
