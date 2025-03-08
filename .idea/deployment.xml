@@ -2,49 +2,63 @@
 <project version="4">
   <component name="PublishConfigData" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
-      <paths name="root@connect.yza1.seetacloud.com:27118 password">
+      <paths name="root@connect.yza1.seetacloud.com:13376 password">
         <serverdata>
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
-      <paths name="root@connect.yza1.seetacloud.com:27118 password (2)">
+      <paths name="root@connect.yza1.seetacloud.com:48753 password">
         <serverdata>
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
-      <paths name="root@connect.yza1.seetacloud.com:30350 password">
+      <paths name="root@connect.yza1.seetacloud.com:48753 password (2)">
         <serverdata>
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
-      <paths name="root@connect.yza1.seetacloud.com:30350 password (2)">
+      <paths name="root@connect.yza1.seetacloud.com:48753 password (3)">
         <serverdata>
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
-      <paths name="root@connect.yza1.seetacloud.com:32950 password">
+      <paths name="root@connect.yza1.seetacloud.com:57485 password">
         <serverdata>
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
-      <paths name="root@connect.yza1.seetacloud.com:32950 password (2)">
+      <paths name="root@connect.yza1.seetacloud.com:57967 password">
         <serverdata>
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
-      <paths name="root@connect.yza1.seetacloud.com:56549 password">
+      <paths name="root@connect.yza1.seetacloud.com:57967 password (2)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="root@connect.yza1.seetacloud.com:57967 password (3)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="root@connect.yza1.seetacloud.com:57967 password (4)">
         <serverdata>
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />

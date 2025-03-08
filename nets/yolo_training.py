@@ -20,8 +20,6 @@ def select_candidates_in_gts(xy_centers, gt_bboxes, eps=1e-9, roll_out=False):
     """
     n_anchors       = xy_centers.shape[0]
     bs, n_boxes, _  = gt_bboxes.shape
-    # 计算每个真实框距离每个anchors锚点的左上右下的距离，然后求min
-    # 保证真实框在锚点附近，包围锚点
     if roll_out:
         bbox_deltas = torch.empty((bs, n_boxes, n_anchors), device=gt_bboxes.device)
         for b in range(bs):
@@ -30,9 +28,7 @@ def select_candidates_in_gts(xy_centers, gt_bboxes, eps=1e-9, roll_out=False):
                                        dim=2).view(n_boxes, n_anchors, -1).amin(2).gt_(eps)
         return bbox_deltas
     else:
-        # 真实框的坐上右下left-top, right-bottom 
-        lt, rb      = gt_bboxes.view(-1, 1, 4).chunk(2, 2)  
-        # 真实框距离每个anchors锚点的左上右下的距离
+        lt, rb      = gt_bboxes.view(-1, 1, 4).chunk(2, 2)
         bbox_deltas = torch.cat((xy_centers[None] - lt, rb - xy_centers[None]), dim=2).view(bs, n_boxes, n_anchors, -1)
         # return (bbox_deltas.min(3)[0] > eps).to(gt_bboxes.dtype)
         return bbox_deltas.amin(3).gt_(eps)
@@ -52,13 +48,9 @@ def select_highest_overlaps(mask_pos, overlaps, n_max_boxes):
     """
     # b, n_max_boxes, 8400 -> b, 8400
     fg_mask = mask_pos.sum(-2)
-    # 如果有一个anchor被指派去预测多个真实框
     if fg_mask.max() > 1:  
         # b, n_max_boxes, 8400
-        mask_multi_gts      = (fg_mask.unsqueeze(1) > 1).repeat([1, n_max_boxes, 1])  
-        # 如果有一个anchor被指派去预测多个真实框，首先计算这个anchor最重合的真实框
-        # 然后做一个onehot
-        # b, 8400
+        mask_multi_gts      = (fg_mask.unsqueeze(1) > 1).repeat([1, n_max_boxes, 1])
         max_overlaps_idx    = overlaps.argmax(1)  
         # b, 8400, n_max_boxes
         is_max_overlaps     = F.one_hot(max_overlaps_idx, n_max_boxes)  
@@ -67,7 +59,6 @@ def select_highest_overlaps(mask_pos, overlaps, n_max_boxes):
         # b, n_max_boxes, 8400
         mask_pos            = torch.where(mask_multi_gts, is_max_overlaps, mask_pos) 
         fg_mask             = mask_pos.sum(-2)
-    # 找到每个anchor符合哪个gt
     target_gt_idx = mask_pos.argmax(-2)  # (b, h*w)
     return target_gt_idx, fg_mask, mask_pos
 
@@ -103,11 +94,8 @@ class TaskAlignedAssigner(nn.Module):
             target_scores (Tensor)  : shape(bs, num_total_anchors, num_classes)
             fg_mask (Tensor)        : shape(bs, num_total_anchors)
         """
-        # 获得batch_size 
         self.bs             = pd_scores.size(0)
-        # 获得真实框中的最大框数量
         self.n_max_boxes    = gt_bboxes.size(1)
-        # 如果self.n_max_boxes大于self.roll_out_thr则roll_out
         self.roll_out       = self.n_max_boxes > self.roll_out_thr if self.roll_out_thr else False
     
         if self.n_max_boxes == 0:
@@ -115,63 +103,28 @@ class TaskAlignedAssigner(nn.Module):
             return (torch.full_like(pd_scores[..., 0], self.bg_idx).to(device), torch.zeros_like(pd_bboxes).to(device),
                     torch.zeros_like(pd_scores).to(device), torch.zeros_like(pd_scores[..., 0]).to(device),
                     torch.zeros_like(pd_scores[..., 0]).to(device))
-
-        # b, max_num_obj, 8400
-        # mask_pos      满足在真实框内、是真实框topk最重合的正样本、满足mask_gt的锚点
-        # align_metric  某个先验点属于某个真实框的类的概率乘上某个先验点与真实框的重合程度
-        # overlaps      所有真实框和锚点的重合程度
         mask_pos, align_metric, overlaps = self.get_pos_mask(pd_scores, pd_bboxes, gt_labels, gt_bboxes, anc_points, mask_gt)
 
-        # target_gt_idx     b, 8400     每个anchor符合哪个gt
-        # fg_mask           b, 8400     每个anchor是否有符合的gt
-        # mask_pos          b, max_num_obj, 8400    one_hot后的target_gt_idx
         target_gt_idx, fg_mask, mask_pos = select_highest_overlaps(mask_pos, overlaps, self.n_max_boxes)
 
-        # 指定目标到对应的anchor点上
-        # b, 8400
-        # b, 8400, 4
-        # b, 8400, 80
         target_labels, target_bboxes, target_scores = self.get_targets(gt_labels, gt_bboxes, target_gt_idx, fg_mask)
 
-        # 乘上mask_pos，把不满足真实框满足的锚点的都置0
         align_metric        *= mask_pos
-        # 每个真实框对应的最大得分
-        # b, max_num_obj
+
         pos_align_metrics   = align_metric.amax(axis=-1, keepdim=True) 
-        # 每个真实框对应的最大重合度
-        # b, max_num_obj
+
         pos_overlaps        = (overlaps * mask_pos).amax(axis=-1, keepdim=True)
-        # 把每个真实框和先验点的得分乘上最大重合程度，再除上最大得分
+
         norm_align_metric   = (align_metric * pos_overlaps / (pos_align_metrics + self.eps)).amax(-2).unsqueeze(-1)
-        # target_scores作为正则的标签
+
         target_scores       = target_scores * norm_align_metric
 
         return target_labels, target_bboxes, target_scores, fg_mask.bool(), target_gt_idx
 
     def get_pos_mask(self, pd_scores, pd_bboxes, gt_labels, gt_bboxes, anc_points, mask_gt):
-        # pd_scores bs, num_total_anchors, num_classes
-        # pd_bboxes bs, num_total_anchors, 4
-        # gt_labels bs, n_max_boxes, 1
-        # gt_bboxes bs, n_max_boxes, 4
-        # 
-        # align_metric是一个算出来的代价值，某个先验点属于某个真实框的类的概率乘上某个先验点与真实框的重合程度
-        # overlaps是某个先验点与真实框的重合程度
-        # align_metric, overlaps    bs, max_num_obj, 8400
         align_metric, overlaps  = self.get_box_metrics(pd_scores, pd_bboxes, gt_labels, gt_bboxes)
-        
-        # 正样本锚点需要同时满足：
-        # 1、在真实框内
-        # 2、是真实框topk最重合的正样本
-        # 3、满足mask_gt
-        
-        # get in_gts mask           b, max_num_obj, 8400
-        # 判断先验点是否在真实框内
         mask_in_gts             = select_candidates_in_gts(anc_points, gt_bboxes, roll_out=self.roll_out)
-        # get topk_metric mask      b, max_num_obj, 8400
-        # 判断锚点是否在真实框的topk中
         mask_topk               = self.select_topk_candidates(align_metric * mask_in_gts, topk_mask=mask_gt.repeat([1, 1, self.topk]).bool())
-        # merge all mask to a final mask, b, max_num_obj, h*w
-        # 真实框存在，非padding
         mask_pos                = mask_topk * mask_in_gts * mask_gt
 
         return mask_pos, align_metric, overlaps
@@ -183,28 +136,14 @@ class TaskAlignedAssigner(nn.Module):
             ind_0           = torch.empty(self.n_max_boxes, dtype=torch.long)
             for b in range(self.bs):
                 ind_0[:], ind_2 = b, gt_labels[b].squeeze(-1).long()
-                # 获得属于这个类别的得分
-                # bs, max_num_obj, 8400
-                bbox_scores     = pd_scores[ind_0, :, ind_2]  
-                # 计算真实框和预测框的ciou
-                # bs, max_num_obj, 8400
+                bbox_scores     = pd_scores[ind_0, :, ind_2]
                 overlaps[b]     = bbox_iou(gt_bboxes[b].unsqueeze(1), pd_bboxes[b].unsqueeze(0), xywh=False, CIoU=True).squeeze(2).clamp(0)
                 align_metric[b] = bbox_scores.pow(self.alpha) * overlaps[b].pow(self.beta)
         else:
-            # 2, b, max_num_obj
-            ind = torch.zeros([2, self.bs, self.n_max_boxes], dtype=torch.long)       
-            # b, max_num_obj  
-            # [0]代表第几个图片的
-            ind[0] = torch.arange(end=self.bs).view(-1, 1).repeat(1, self.n_max_boxes)  
-            # [1]真是标签是什么
-            ind[1] = gt_labels.long().squeeze(-1) 
-            # 获得属于这个类别的得分
-            # 取出某个先验点属于某个类的概率
-            # b, max_num_obj, 8400
-            bbox_scores = pd_scores[ind[0], :, ind[1]]  
-
-            # 计算真实框和预测框的ciou
-            # bs, max_num_obj, 8400
+            ind = torch.zeros([2, self.bs, self.n_max_boxes], dtype=torch.long)
+            ind[0] = torch.arange(end=self.bs).view(-1, 1).repeat(1, self.n_max_boxes)
+            ind[1] = gt_labels.long().squeeze(-1)
+            bbox_scores = pd_scores[ind[0], :, ind[1]]
             overlaps        = bbox_iou(gt_bboxes.unsqueeze(2), pd_bboxes.unsqueeze(1), xywh=False, CIoU=True).squeeze(3).clamp(0)
             align_metric    = bbox_scores.pow(self.alpha) * overlaps.pow(self.beta)
         return align_metric, overlaps
@@ -215,24 +154,17 @@ class TaskAlignedAssigner(nn.Module):
             metrics     : (b, max_num_obj, h*w).
             topk_mask   : (b, max_num_obj, topk) or None
         """
-        # 8400
-        num_anchors             = metrics.shape[-1] 
-        # b, max_num_obj, topk
+        num_anchors             = metrics.shape[-1]
         topk_metrics, topk_idxs = torch.topk(metrics, self.topk, dim=-1, largest=largest)
         if topk_mask is None:
             topk_mask = (topk_metrics.max(-1, keepdim=True) > self.eps).tile([1, 1, self.topk])
-        # b, max_num_obj, topk
         topk_idxs[~topk_mask] = 0
-        # b, max_num_obj, topk, 8400 -> b, max_num_obj, 8400
-        # 这一步得到的is_in_topk为b, max_num_obj, 8400
-        # 代表每个真实框对应的top k个先验点
         if self.roll_out:
             is_in_topk = torch.empty(metrics.shape, dtype=torch.long, device=metrics.device)
             for b in range(len(topk_idxs)):
                 is_in_topk[b] = F.one_hot(topk_idxs[b], num_anchors).sum(-2)
         else:
             is_in_topk = F.one_hot(topk_idxs, num_anchors).sum(-2)
-        # 判断锚点是否在真实框的topk中
         is_in_topk = torch.where(is_in_topk > 1, 0, is_in_topk)
         return is_in_topk.to(metrics.dtype)
 
@@ -245,18 +177,12 @@ class TaskAlignedAssigner(nn.Module):
             fg_mask         : (b, h*w)
         """
 
-        # 用于读取真实框标签, (b, 1)
         batch_ind       = torch.arange(end=self.bs, dtype=torch.int64, device=gt_labels.device)[..., None]
-        # b, h*w    获得gt_labels，gt_bboxes在flatten后的序号
         target_gt_idx   = target_gt_idx + batch_ind * self.n_max_boxes
-        # b, h*w    用于flatten后读取标签
         target_labels   = gt_labels.long().flatten()[target_gt_idx]
-        # b, h*w, 4 用于flatten后读取box
         target_bboxes   = gt_bboxes.view(-1, 4)[target_gt_idx]
-        
-        # assigned target scores
+
         target_labels.clamp(0)
-        # 进行one_hot映射到训练需要的形式。
         target_scores   = F.one_hot(target_labels, self.num_classes)  # (b, h*w, 80)
         fg_scores_mask  = fg_mask[:, :, None].repeat(1, 1, self.num_classes)  # (b, h*w, 80)
         target_scores   = torch.where(fg_scores_mask > 0, target_scores, 0)
@@ -265,9 +191,8 @@ class TaskAlignedAssigner(nn.Module):
 
 def bbox_iou(box1, box2, xywh=True, GIoU=False, DIoU=False, CIoU=False, eps=1e-7):
     # Returns Intersection over Union (IoU) of box1(1,4) to box2(n,4)
-
     # Get the coordinates of bounding boxes
-    if xywh:  # transform from xywh to xyxy
+    if xywh:
         (x1, y1, w1, h1), (x2, y2, w2, h2) = box1.chunk(4, -1), box2.chunk(4, -1)
         w1_, h1_, w2_, h2_ = w1 / 2, h1 / 2, w2 / 2, h2 / 2
         b1_x1, b1_x2, b1_y1, b1_y2 = x1 - w1_, x1 + w1_, y1 - h1_, y1 + h1_
@@ -315,12 +240,8 @@ class BboxLoss(nn.Module):
         self.use_dfl = use_dfl
 
     def forward(self, pred_dist, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask):
-        # 计算IOU损失
-        # weight代表损失中标签应该有的置信度，0最小，1最大
         weight      = torch.masked_select(target_scores.sum(-1), fg_mask).unsqueeze(-1)
-        # 计算预测框和真实框的重合程度
         iou         = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)
-        # 然后1-重合程度，乘上应该有的置信度，求和后求平均。
         loss_iou    = ((1.0 - iou) * weight).sum() / target_scores_sum
 
         # 计算DFL损失
@@ -341,9 +262,6 @@ class BboxLoss(nn.Module):
         tr = tl + 1  # target right
         wl = tr - target  # weight left
         wr = 1 - wl  # weight right
-        # 一个点一般不会处于anchor点上，一般是xx.xx。如果要用DFL的话，不可能直接一个cross_entropy就能拟合
-        # 所以把它认为是相对于xx.xx左上角锚点与右下角锚点的距离 如果距离右下角锚点距离小，wl就小，左上角损失就小
-        #                                                   如果距离左上角锚点距离小，wr就小，右下角损失就小
         return (F.cross_entropy(pred_dist, tl.view(-1), reduction="none").view(tl.shape) * wl +
                 F.cross_entropy(pred_dist, tr.view(-1), reduction="none").view(tl.shape) * wr).mean(-1, keepdim=True)
 
@@ -388,37 +306,29 @@ class Loss:
         if targets.shape[0] == 0:
             out = torch.zeros(batch_size, 0, 5, device=targets.device)
         else:
-            # 获得图像索引
             i           = targets[:, 0]  
             _, counts   = i.unique(return_counts=True)
             out         = torch.zeros(batch_size, counts.max(), 5, device=targets.device)
-            # 对batch进行循环，然后赋值
             for j in range(batch_size):
                 matches = i == j
                 n = matches.sum()
                 if n:
                     out[j, :n] = targets[matches, 1:]
-            # 缩放到原图大小。
             out[..., 1:5] = xywh2xyxy(out[..., 1:5].mul_(scale_tensor))
         return out
 
     def bbox_decode(self, anchor_points, pred_dist):
         if self.use_dfl:
             # batch, anchors, channels
-            b, a, c     = pred_dist.shape  
-            # DFL的解码
+            b, a, c     = pred_dist.shape
             pred_dist   = pred_dist.view(b, a, 4, c // 4).softmax(3).matmul(self.proj.to(pred_dist.device).type(pred_dist.dtype))
             # pred_dist = pred_dist.view(b, a, c // 4, 4).transpose(2,3).softmax(3).matmul(self.proj.type(pred_dist.dtype))
             # pred_dist = (pred_dist.view(b, a, c // 4, 4).softmax(2) * self.proj.type(pred_dist.dtype).view(1, 1, -1, 1)).sum(2)
-        # 然后解码获得预测框
         return dist2bbox(pred_dist, anchor_points, xywh=False)
 
     def __call__(self, preds, batch):
-        # 获得使用的device
         device  = preds[1].device
-        # box, cls, dfl三部分的损失
-        loss    = torch.zeros(3, device=device)  
-        # 获得特征，并进行划分
+        loss    = torch.zeros(3, device=device)
         feats   = preds[2] if isinstance(preds, tuple) else preds
         pred_distri, pred_scores = torch.cat([xi.view(feats[0].shape[0], self.no, -1) for xi in feats], 2).split((self.reg_max * 4, self.nc), 1)
 
@@ -427,37 +337,17 @@ class Loss:
         pred_scores = pred_scores.permute(0, 2, 1).contiguous()
         pred_distri = pred_distri.permute(0, 2, 1).contiguous()
 
-        # 获得batch size与dtype
         dtype       = pred_scores.dtype
         batch_size  = pred_scores.shape[0]
-        # 获得输入图片大小
-        imgsz       = torch.tensor(feats[0].shape[2:], device=device, dtype=dtype) * self.stride[0]  
-        # 获得anchors点和步长对应的tensor
+        imgsz       = torch.tensor(feats[0].shape[2:], device=device, dtype=dtype) * self.stride[0]
         anchor_points, stride_tensor = make_anchors(feats, self.stride, 0.5)
 
-        # 把一个batch中的东西弄一个矩阵
-        # 0为属于第几个图片
-        # 1为种类
-        # 2:为框的坐标
         targets                 = torch.cat((batch[:, 0].view(-1, 1), batch[:, 1].view(-1, 1), batch[:, 2:]), 1)
-        # 先进行初步的处理，对输入进来的gt进行padding，到最大数量，并把框的坐标进行缩放
-        # bs, max_boxes_num, 5
         targets                 = self.preprocess(targets.to(device), batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
-        # bs, max_boxes_num, 5 => bs, max_boxes_num, 1 ; bs, max_boxes_num, 4
         gt_labels, gt_bboxes    = targets.split((1, 4), 2)  # cls, xyxy
-        # 求哪些框是有目标的，哪些是填充的
-        # bs, max_boxes_num
         mask_gt                 = gt_bboxes.sum(2, keepdim=True).gt_(0)
-
-        # pboxes
-        # 对预测结果进行解码，获得预测框
-        # bs, 8400, 4
         pred_bboxes             = self.bbox_decode(anchor_points, pred_distri)  # xyxy, (b, h*w, 4)
 
-        # 对预测框与真实框进行分配
-        # target_bboxes     bs, 8400, 4
-        # target_scores     bs, 8400, 80
-        # fg_mask           bs, 8400
         _, target_bboxes, target_scores, fg_mask, _ = self.assigner(
             pred_scores.detach().sigmoid(), (pred_bboxes.detach() * stride_tensor).type(gt_bboxes.dtype),
             anchor_points * stride_tensor, gt_labels, gt_bboxes, mask_gt
@@ -465,12 +355,8 @@ class Loss:
 
         target_bboxes       /= stride_tensor
         target_scores_sum   = max(target_scores.sum(), 1)
-
-        # 计算分类的损失
-        # loss[1] = self.varifocal_loss(pred_scores, target_scores, target_labels) / target_scores_sum  # VFL way
         loss[1] = self.bce(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum  # BCE
 
-        # 计算bbox的损失
         if fg_mask.sum():
             loss[0], loss[2] = self.bbox_loss(pred_distri, pred_bboxes, anchor_points, target_bboxes, target_scores,
                                               target_scores_sum, fg_mask)
