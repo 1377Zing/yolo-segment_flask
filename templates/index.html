@@ -63,7 +63,7 @@
             padding: 4px 8px;
             border: none;
             border-radius: 25px;
-            background-color: #f1f1f1;
+            background-color: #ffffff;
             cursor: pointer;
             font-size: 12px;
             width: 100px;
@@ -71,8 +71,56 @@
 
         .custom-select select:focus {
             outline: none;
-            box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
         }
+
+.loading-indicator {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 9999;
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 30px;
+    border-radius: 15px;
+    text-align: center;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.loading-indicator p {
+    font-size: 20px;
+    font-weight: bold;
+    color: #FF5722;
+    margin: 0;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+
+.img-thumbnail {
+    max-width: 100%;
+    max-height: 150px;
+    margin: 10px;
+    border: 3px solid #FF5722;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s ease-in-out;
+}
+
+.img-thumbnail:hover {
+    transform: scale(1.1);
+}
 
         textarea {
             width: 100%;
@@ -128,6 +176,8 @@
                             <option value="1">default2: Dark image</option>
                         </select>
                     </div>
+                     <div class="loading-indicator"><p>Processing... Please wait.</p>
+                     </div>
                 </div>
 
 
@@ -150,7 +200,7 @@
 
 
     <script>
-        document.getElementById('upload-form').onsubmit = async function (event) {
+          document.getElementById('upload-form').onsubmit = async function (event) {
             event.preventDefault();
             const formData = new FormData(event.target);
             const response = await fetch('/upload', {
@@ -189,6 +239,8 @@
         let resultData1 = null
         let resultData2 = null
         async function handleHeadDetection(route) {
+            const loadingIndicator = document.querySelector('.loading-indicator');
+            loadingIndicator.style.display = 'block';
             console.log("Handling head detection...");
             const response = await fetch(route, {
                 method: 'POST',
@@ -196,33 +248,37 @@
                     'Content-Type': 'application/json'
                 }
             });
-
+            resultData2 = null
             const data = await response.json();
             console.log("Received data from head detection:", data);
 
             if (data.error) {
                 console.error("Error:", data.error);
-                return;
-            }
-            resultData1 = data;
-            await handleImageDisplay(data);
+            } else {
+                resultData1 = data;
+                await handleImageDisplay(data);
 
-            const resultText = document.getElementById('result-text');
-            let formattedResults = "";
-            for (let color in data.results) {
-                formattedResults += `${color}:\n`;
-                data.results[color].forEach(entry => {
-                    let [identifier, total_fluorescence, avg_fluorescence] = entry;
-                    formattedResults += `  id: ${identifier}, Area: ${total_fluorescence}, M_intesity: ${avg_fluorescence}\n`;
-                });
-            }
+                const resultText = document.getElementById('result-text');
+                let formattedResults = "";
+                for (let color in data.results) {
+                    formattedResults += `${color}:\n`;
+                    data.results[color].forEach(entry => {
+                        let [identifier, total_fluorescence, avg_fluorescence] = entry;
+                        formattedResults += `  id: ${identifier}, Area: ${total_fluorescence}, M_intesity: ${avg_fluorescence}\n`;
+                    });
+                }
 
-            resultText.value = formattedResults;
-            autoResizeTextarea(resultText);
+                resultText.value = formattedResults;
+                autoResizeTextarea(resultText);
+            }
+            loadingIndicator.style.display = 'none';
         }
+
         let isProcessing = false;
         async function handleHeadAndTailDetection(route, selectedNumber) {
-            alert("Handling head and tail detection...");
+            const loadingIndicator = document.querySelector('.loading-indicator');
+            loadingIndicator.style.display = 'block';
+            console.log("Handling head and tail detection...");
             isProcessing = true;
             const response = await fetch(route, {
                 method: 'POST',
@@ -231,29 +287,32 @@
                 },
                 body: JSON.stringify({ selectedNumber: selectedNumber })
             });
+            resultData1 = null
             const data = await response.json();
-            alert("Received data from head and tail detection:", data);
+            console.log("Received data from head and tail detection:", data);
             isProcessing = false;
 
             if (data.error) {
-                alert("Error:", data.error);
-                return;
-            }
-            resultData2 = data;
-            await handleImageDisplay(data);
+                console.error("Error:", data.error);
+            } else {
+                resultData2 = data;
+                await handleImageDisplay(data);
 
-            const resultText = document.getElementById('result-text');
-            let formattedResults = '';
-            for (let color in data.results) {
-                formattedResults += `${color}:\n`;
-                data.results[color].forEach(entry => {
-                    formattedResults += `  id: ${entry.id}, head: ${entry.head}, tail: ${entry.tail}\n`;
-                });
-            }
+                const resultText = document.getElementById('result-text');
+                let formattedResults = '';
+                for (let color in data.results) {
+                    formattedResults += `${color}:\n`;
+                    data.results[color].forEach(entry => {
+                        formattedResults += `  id: ${entry.id}, head: ${entry.head}, tail: ${entry.tail}\n`;
+                    });
+                }
 
-            resultText.value = formattedResults;
-            autoResizeTextarea(resultText);
+                resultText.value = formattedResults;
+                autoResizeTextarea(resultText);
+            }
+            loadingIndicator.style.display = 'none';
         }
+
         document.getElementById('another-action').addEventListener('click', function () {
             if (isProcessing) return;
             const selectContainer = document.getElementById('select-container');
@@ -264,109 +323,96 @@
                 const selectedNumber = parseInt(this.value);
                 handleHeadAndTailDetection('/process2', selectedNumber);
                 selectContainer.style.display = 'none';
-                // 将选择框恢复到默认状态
                 this.value = '';
             });
         });
+
         document.getElementById('start-detection').onclick = function (event) {
             console.log("Start Detection Button Clicked");
             handleHeadDetection('/process');
         };
-
-
-
-
 
         function autoResizeTextarea(textarea) {
             textarea.style.height = 'auto';
             textarea.style.height = textarea.scrollHeight + 'px';
         }
 
-        document.getElementById('download').onclick = function () {
-            if (!resultData1 && !resultData2) {
-                alert("No data was detected.！");
-                return;
-            }
 
-            if (resultData1) {
-                const jsonData = resultData1;
-                const headers = ["Color", "ID", "Area", "M_Intensity"];
-                const resultsArray = [];
+function receiveResultData1(data) {
+    resultData2 = null;
+    resultData1 = data;
+}
 
-                for (let color in jsonData.results) {
-                    jsonData.results[color].forEach(entry => {
-                        resultsArray.push([color, entry[0], entry[1], entry[2]]);
+function receiveResultData2(data) {
+    resultData1 = null;
+    resultData2 = data;
+}
+
+
+document.getElementById('download').onclick = function () {
+    if (!resultData1 && !resultData2) {
+        alert("No data was detected!");
+        return;
+    }
+
+    function processAndDownload(data, headers) {
+        const jsonData = data;
+        const resultsArray = [];
+
+        for (let color in jsonData.results) {
+            jsonData.results[color].forEach(entry => {
+                if (headers.length === 4) {
+                    resultsArray.push([color, entry[0], entry[1], entry[2]]);
+                } else {
+                    const parts = ['head', 'tail'];
+                    parts.forEach(part => {
+                        const area = entry[part][0];
+                        const m_intensity = entry[part][1];
+                        resultsArray.push([color, entry.id, part, area, m_intensity]);
                     });
                 }
+            });
+        }
 
-                const finalData = [headers, ...resultsArray];
-                const ws = XLSX.utils.aoa_to_sheet(finalData);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, "Results");
-                const excelData = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+        const finalData = [headers, ...resultsArray];
+        const ws = XLSX.utils.aoa_to_sheet(finalData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Results");
+        const excelData = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+        fetch('/download', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ excelData })
+        })
+           .then(response => response.blob())
+           .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'result.zip';
+                a.click();
+                URL.revokeObjectURL(url);
 
-                // 发送请求到后端
-                fetch('/download', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ excelData })
-                })
-                   .then(response => response.blob())
-                   .then(blob => {
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = 'result.zip';
-                        a.click();
-                        URL.revokeObjectURL(url);
-                    })
-                   .catch(error => console.error('Error:', error));
-            } else if (resultData2) {
-                const jsonData = resultData2;
-                const headers = ["Color", "ID", "Part", "Area", "M_Intensity"];
-                const resultsArray = [];
-
-                for (let color in jsonData.results) {
-                    jsonData.results[color].forEach(entry => {
-                        const parts = ['head', 'tail'];
-                        parts.forEach(part => {
-                            const area = entry[part][0];
-                            const m_intensity = entry[part][1];
-                            resultsArray.push([color, entry.id, part, area, m_intensity]);
-                        });
-                    });
+                // 下载完成后清空当前数据
+                if (resultData1) {
+                    resultData1 = null;
+                } else {
+                    resultData2 = null;
                 }
+            })
+           .catch(error => console.error('Error:', error));
+    }
 
-                const finalData = [headers, ...resultsArray];
-                const ws = XLSX.utils.aoa_to_sheet(finalData);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, "Results");
-                const excelData = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
-
-                // 发送请求到后端
-                fetch('/download', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ excelData })
-                })
-                   .then(response => response.blob())
-                   .then(blob => {
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = 'result.zip';
-                        a.click();
-                        URL.revokeObjectURL(url);
-                    })
-                   .catch(error => console.error('Error:', error));
-            }
-        };
-
-
+    if (resultData1) {
+        const headers = ["Color", "ID", "Area", "M_Intensity"];
+        processAndDownload(resultData1, headers);
+    } else if (resultData2) {
+        const headers = ["Color", "ID", "Part", "Area", "M_Intensity"];
+        processAndDownload(resultData2, headers);
+    }
+};
 
     </script>
 </body>

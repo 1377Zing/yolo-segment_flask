@@ -116,6 +116,63 @@ def calculate_intersection_area1(yolobox, convex_image):
             intersection_count += 1
     return intersection_count
 
+def print_seg(image_path, info, mode):
+    original_image = Image.open(image_path)
+    if original_image.mode != 'RGB':
+        original_image = original_image.convert('RGB')
+
+    original_np = np.array(original_image, dtype=np.uint8)
+    image = Image.open(image_path)
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
+    colorNum = detect_color(image)
+    color = ["red", "green", "blue", "yellow"][colorNum]
+    tolerance = 200
+    lower_white = np.array([255 - tolerance, 255 - tolerance, 255 - tolerance], dtype=np.uint8)
+    upper_white = np.array([255, 255, 255], dtype=np.uint8)
+    mask = cv2.inRange(original_np, lower_white, upper_white)
+    original_np[mask > 0] = [0, 0, 0]
+
+    original_image = Image.fromarray(original_np)
+
+    image2 = original_image.convert('L')
+
+    fluorescence_channel_np = np.array(image2)
+    alpha = 5
+    beta = -2
+    adjusted_image = cv2.convertScaleAbs(fluorescence_channel_np, alpha=alpha, beta=beta)
+    manual_threshold = 3
+    _, binary_image = cv2.threshold(fluorescence_channel_np, manual_threshold, 255, cv2.THRESH_BINARY)
+    labeled_image = measure.label(binary_image)
+    regions = measure.regionprops(labeled_image, intensity_image=fluorescence_channel_np)
+    selected_regions = [region for region in regions if 20 <= region.area <= 1000]
+    result = []
+
+    font_path = 'model_data/simhei.ttf'
+    font = ImageFont.truetype(font=font_path, size=np.floor(2e-2 * original_image.size[1] + 0.5).astype('int32'))
+    draw = ImageDraw.Draw(original_image)
+    for max_region in selected_regions :
+                convex_image = max_region.convex_image.astype(np.uint8) * 255
+
+                contours, _ = cv2.findContours(convex_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+                bbox_min_row, bbox_min_col, bbox_max_row, bbox_max_col = max_region.bbox
+                for contour in contours:
+                    contour_points = []
+                    for point in contour:
+                        x = point[0][0] + bbox_min_col
+                        y = point[0][1] + bbox_min_row
+                        contour_points.extend([x, y])
+                    if len(contour_points) > 2:
+                            draw.polygon(contour_points, outline='red', width=1)
+
+
+                result_sorted = sorted(result, key=lambda x: x["id"])
+
+
+
+
+    return original_image, result_sorted
 def process_tail_image(image_path, info, mode):
     original_image = Image.open(image_path)
     if original_image.mode != 'RGB':
@@ -138,14 +195,14 @@ def process_tail_image(image_path, info, mode):
     image2 = original_image.convert('L')
 
     fluorescence_channel_np = np.array(image2)
-    if  mode ==0:
+    if mode == 0:
         equalized_image = cv2.equalizeHist(fluorescence_channel_np)
         manual_threshold = 30
         _, binary_image = cv2.threshold(equalized_image, manual_threshold, 255, cv2.THRESH_BINARY)
 
         labeled_image = measure.label(binary_image)
         regions = measure.regionprops(labeled_image, intensity_image=fluorescence_channel_np)
-        selected_regions = [region for region in regions if 50 <= region.area <= 1000 ]
+        selected_regions = [region for region in regions if 20 <= region.area <= 1000]
         result = []
 
         font_path = 'model_data/simhei.ttf'
@@ -239,15 +296,15 @@ def process_tail_image(image_path, info, mode):
                 })
 
         result_sorted = sorted(result, key=lambda x: x["id"])
-    elif mode ==1:
-        alpha = 5
-        beta = -2
-        adjusted_image = cv2.convertScaleAbs(fluorescence_channel_np, alpha=alpha, beta=beta)
+    elif mode == 1:
+        # alpha = 5
+        # beta = -2
+        # adjusted_image = cv2.convertScaleAbs(fluorescence_channel_np, alpha=alpha, beta=beta)
         manual_threshold = 3
-        _, binary_image = cv2.threshold(adjusted_image, manual_threshold, 255, cv2.THRESH_BINARY)
+        _, binary_image = cv2.threshold(fluorescence_channel_np, manual_threshold, 255, cv2.THRESH_BINARY)
         labeled_image = measure.label(binary_image)
         regions = measure.regionprops(labeled_image, intensity_image=fluorescence_channel_np)
-        selected_regions = [region for region in regions if 10 <= region.area <= 1000]
+        selected_regions = [region for region in regions if 20 <= region.area <= 1000]
         result = []
 
         font_path = 'model_data/simhei.ttf'

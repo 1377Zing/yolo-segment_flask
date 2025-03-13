@@ -24,7 +24,7 @@ class YOLO(object):
         # YOLOv8 version used:
         "phi": 's',
         # Only prediction boxes with scores greater than the confidence will be kept.
-        "confidence": 0.5,
+        "confidence": 0.3,
         # NMS IoU value for non - maximum suppression.
         "nms_iou": 0.3,
         # Whether to use letterbox_image for distortion - free resizing.
