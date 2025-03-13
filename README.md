@@ -14,3 +14,4 @@ cd yolo-segment_flask
 pip install -r requirements.txt
 python app.py
 ```
+ps:The demo already run on http://106.52.98.34/, please watch system_demo.mp4 to learn how to use the demo.
